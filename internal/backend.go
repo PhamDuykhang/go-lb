@@ -16,11 +16,11 @@ type (
 	}
 )
 
-//SetDead mark a backend service status to down
-func (b *Backend) SetDead() {
+//SetAlive mark a backend service status to down
+func (b *Backend) SetAlive(isAlv bool) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	b.isAlive = false
+	b.isAlive = isAlv
 }
 
 //IsAlive to check the backend is a alive or not
@@ -35,16 +35,19 @@ func (b *Backend) IsAlive() bool {
 func (b *Backend) HeathCheck(hcPatterm string) {
 	req, err := http.NewRequest(http.MethodGet, b.TagertURL+"/"+hcPatterm, nil)
 	if err != nil {
-		b.SetDead()
+		b.SetAlive(false)
 		return
 	}
 	cl := http.DefaultClient
 	rs, err := cl.Do(req)
 	if err != nil {
-		b.SetDead()
+		b.SetAlive(false)
 		return
 	}
 	if rs.StatusCode != http.StatusOK {
-		b.SetDead()
+		b.SetAlive(false)
+		return
 	}
+	b.SetAlive(true)
+
 }

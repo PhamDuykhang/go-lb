@@ -1,6 +1,7 @@
 package golb
 
 import (
+	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"sync/atomic"
@@ -33,7 +34,9 @@ func NewLoadBalaningPool(backendList []string) (*LoadBalancePool, error) {
 			TagertURL: url.String(),
 			rpx:       rveProxy,
 		}
-		lbP.bk = append(lbP.bk, &bk)
+		if bk.IsAlive() {
+			lbP.bk = append(lbP.bk, &bk)
+		}
 	}
 	return &lbP, nil
 }
@@ -58,4 +61,22 @@ func (lp *LoadBalancePool) Next() *Backend {
 		}
 	}
 	return nil
+}
+
+//NewLoadBalancer get a backend pool and start the forward handler
+func NewLoadBalancer(sevPool *LoadBalancePool) LoadBalancer {
+	return LoadBalancer{
+		pool: sevPool,
+	}
+}
+
+//LoadBalance get a request and forward to one of our backends
+func (lb LoadBalancer) LoadBalance(w http.ResponseWriter, r *http.Request) {
+	p := lb.pool.Next()
+	if p != nil {
+		p.rpx.ServeHTTP(w, r)
+		return
+	}
+	http.Error(w, "Service not available", http.StatusServiceUnavailable)
+	return
 }
