@@ -9,11 +9,11 @@ import (
 
 func main() {
 	listBackend := []string{
-		"localhost:8081",
-		"localhost:8082",
-		"localhost:8083",
-		"localhost:8084",
-		"localhost:8085",
+		"http://localhost:8082",
+		"http://localhost:8083",
+		"http://localhost:8084",
+		"http://localhost:8085",
+		"http://localhost:8086",
 	}
 
 	lbPool, err := golb.NewLoadBalaningPool(listBackend)

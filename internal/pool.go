@@ -1,6 +1,8 @@
 package golb
 
 import (
+	"fmt"
+	"log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -30,11 +32,17 @@ func NewLoadBalaningPool(backendList []string) (*LoadBalancePool, error) {
 			return nil, err
 		}
 		rveProxy := httputil.NewSingleHostReverseProxy(url)
+		rveProxy.ErrorHandler = func(writer http.ResponseWriter, request *http.Request, err error) {
+			log.Print("error ", err)
+			fmt.Fprint(writer, "error")
+		}
 		bk := Backend{
 			TagertURL: url.String(),
 			rpx:       rveProxy,
 		}
+		bk.HeathCheck("check")
 		if bk.IsAlive() {
+			log.Printf("service %s ------------- OK", backendList[i])
 			lbP.bk = append(lbP.bk, &bk)
 		}
 	}
@@ -74,6 +82,7 @@ func NewLoadBalancer(sevPool *LoadBalancePool) LoadBalancer {
 func (lb LoadBalancer) LoadBalance(w http.ResponseWriter, r *http.Request) {
 	p := lb.pool.Next()
 	if p != nil {
+		log.Printf("get request %s -----> %s", r.URL, p.TagertURL)
 		p.rpx.ServeHTTP(w, r)
 		return
 	}
