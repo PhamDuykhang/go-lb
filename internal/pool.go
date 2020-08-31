@@ -23,8 +23,8 @@ type (
 	}
 )
 
-//NewLoadBalaningPool creat a load balacing pool form array of inside backend we have
-func NewLoadBalaningPool(backendList []string) (*LoadBalancePool, error) {
+//NewLoadBalancingPool creat a load balancing pool form array of inside backend we have
+func NewLoadBalancingPool(backendList []string) (*LoadBalancePool, error) {
 	lbP := LoadBalancePool{}
 	for i := range backendList {
 		url, err := url.Parse(backendList[i])
@@ -54,7 +54,7 @@ func (lp *LoadBalancePool) NextIdx() int {
 	return int(atomic.AddUint64(&lp.current, uint64(1)) % uint64(len(lp.bk)))
 }
 
-//Next get a avaliable backed for net request
+//Next get a available backed for net request
 //The function get a backend form a start of nextIdx to end nextIdx-1
 func (lp *LoadBalancePool) Next() *Backend {
 	n := lp.NextIdx()
