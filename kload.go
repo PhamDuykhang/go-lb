@@ -1,81 +1,41 @@
 package main
 
 import (
-	"context"
-	"encoding/json"
+	"flag"
 	"fmt"
-	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/filters"
-	"github.com/docker/docker/client"
-	"time"
+	golb "github.com/PhamDuyKhang/go-lb/internal"
+	"github.com/PhamDuyKhang/go-lb/internal/dicovery"
+	"github.com/sirupsen/logrus"
+	"net/http"
 )
 
-var cli *client.Client
-
-var Running []types.Container
-
-func init() {
-	var err error
-
-	// Init docker cli
-	cli, err = client.NewEnvClient()
-	if err != nil {
-		panic(err)
-	}
-
-	// Init running containers
-	err = reload()
-	if err != nil {
-		panic(err)
-	}
-
-	// Listen for docker events
-	go listen()
-}
-
 func main() {
-	fmt.Print("listening docker engine")
-	time.Sleep(10 * time.Minute)
-}
+	logrus.SetLevel(logrus.InfoLevel)
+	logrus.Info("starting load balancing")
 
-func Ps() {
-	fmt.Println("Running containers")
-	for _, container := range Running {
-		fmt.Printf("%s\n", container.ID)
+	np := flag.String("np", "", "the network name of docker provide")
+
+	flag.Parse()
+
+	if np == nil {
+		logrus.Panic("can't get important parameter")
 	}
-}
 
-// Reload the list of running containers
-func reload() error {
-	var err error
-	Running, err = cli.ContainerList(context.Background(), types.ContainerListOptions{
-		All: false,
-	})
+	backendList := dicovery.GetListBackend(*np)
+
+	lbPool, err := golb.NewLoadBalancingPool(backendList)
 	if err != nil {
-		return err
+		logrus.Panic(err)
 	}
-	return nil
-}
+	KLB := golb.NewLoadBalancer(lbPool)
 
-// Listen for docker events
-func listen() {
-	filter := filters.NewArgs()
-	filter.Add("type", "container")
-	filter.Add("event", "start")
-	filter.Add("event", "die")
+	mainServer := http.Server{
+		Addr:    fmt.Sprintf(":8080"),
+		Handler: http.HandlerFunc(KLB.LoadBalance),
+	}
 
-	msg, errChan := cli.Events(context.Background(), types.EventsOptions{
-		Filters: filter,
-	})
-
-	for {
-		select {
-		case err := <-errChan:
-			panic(err)
-		case d := <-msg:
-			jsond, _ := json.Marshal(d)
-			fmt.Println(string(jsond))
-			reload()
-		}
+	err = mainServer.ListenAndServe()
+	if err != nil {
+		logrus.Panic(err)
 	}
 }

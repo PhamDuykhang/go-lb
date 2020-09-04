@@ -4,7 +4,7 @@ const (
 	DockerProvider = "docker"
 	K8SProvider    = "k8s"
 
-	DiscoveryLabel = "ktech.com.klb.group"
+	DiscoveryLabel = "ktech.loadbalacing"
 )
 
 type (

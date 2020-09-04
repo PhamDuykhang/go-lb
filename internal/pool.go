@@ -2,7 +2,7 @@ package golb
 
 import (
 	"fmt"
-	"log"
+	"github.com/sirupsen/logrus"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -27,22 +27,22 @@ type (
 func NewLoadBalancingPool(backendList []string) (*LoadBalancePool, error) {
 	lbP := LoadBalancePool{}
 	for i := range backendList {
-		url, err := url.Parse(backendList[i])
+		urlFull, err := url.Parse(backendList[i])
 		if err != nil {
 			return nil, err
 		}
-		rveProxy := httputil.NewSingleHostReverseProxy(url)
+		rveProxy := httputil.NewSingleHostReverseProxy(urlFull)
 		rveProxy.ErrorHandler = func(writer http.ResponseWriter, request *http.Request, err error) {
-			log.Print("error ", err)
-			fmt.Fprint(writer, "error")
+			logrus.Error("error ", err)
+			_, _ = fmt.Fprint(writer, "error")
 		}
 		bk := Backend{
-			TagertURL: url.String(),
+			TagertURL: urlFull.String(),
 			rpx:       rveProxy,
 		}
 		bk.HeathCheck("check")
 		if bk.IsAlive() {
-			log.Printf("service %s ------------- OK", backendList[i])
+			logrus.Info("service %s ------------- OK", backendList[i])
 			lbP.bk = append(lbP.bk, &bk)
 		}
 	}
@@ -82,7 +82,7 @@ func NewLoadBalancer(sevPool *LoadBalancePool) LoadBalancer {
 func (lb LoadBalancer) LoadBalance(w http.ResponseWriter, r *http.Request) {
 	p := lb.pool.Next()
 	if p != nil {
-		log.Printf("get request %s -----> %s", r.URL, p.TagertURL)
+		logrus.Info("get request %s -----> %s", r.URL, p.TagertURL)
 		p.rpx.ServeHTTP(w, r)
 		return
 	}
