@@ -1,25 +1,38 @@
 package main
 
 import (
+	"flag"
 	"fmt"
-	"net/http"
-
 	golb "github.com/PhamDuyKhang/go-lb/internal"
+	"github.com/PhamDuyKhang/go-lb/internal/dicovery"
+	"github.com/sirupsen/logrus"
+	"net/http"
+	"os"
+	"os/signal"
+	"sync"
 )
 
 func main() {
-	listBackend := []string{
-		"http://localhost:8082",
-		"http://localhost:8083",
-		"http://localhost:8084",
-		"http://localhost:8085",
-		"http://localhost:8086",
+	logrus.SetLevel(logrus.InfoLevel)
+	logrus.Info("starting load balancing")
+
+	np := flag.String("np", "", "the network name of docker provide")
+
+	flag.Parse()
+
+	if np == nil {
+		logrus.Panic("can't get important parameter")
 	}
 
-	lbPool, err := golb.NewLoadBalaningPool(listBackend)
+	backendList := dicovery.GetListBackend(*np)
+
+	lbPool, err := golb.NewLoadBalancingPool(backendList)
 	if err != nil {
-		panic(err)
+		logrus.Panic(err)
 	}
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go lbPool.WatchChange()
 	KLB := golb.NewLoadBalancer(lbPool)
 
 	mainServer := http.Server{
@@ -27,8 +40,17 @@ func main() {
 		Handler: http.HandlerFunc(KLB.LoadBalance),
 	}
 
-	err = mainServer.ListenAndServe()
-	if err != nil {
-		panic(err)
-	}
+	logrus.Info("starting load balancing service")
+	go func() {
+		err = mainServer.ListenAndServe()
+		if err != nil {
+			logrus.Panic(err)
+		}
+	}()
+	killSignal := make(chan os.Signal, 1)
+	signal.Notify(killSignal, os.Interrupt)
+	logrus.Info("service has been started")
+	<-killSignal
+	logrus.Info("service has been stopped")
+	return
 }
