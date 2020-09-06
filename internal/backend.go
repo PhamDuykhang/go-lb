@@ -9,12 +9,21 @@ import (
 type (
 	//Backend is a service instand when it is scaled
 	Backend struct {
-		TagertURL string
+		TargetURL string
 		mu        sync.RWMutex
 		rpx       *httputil.ReverseProxy
 		isAlive   bool
 	}
 )
+
+func NewBackend(url string) *Backend {
+	return &Backend{
+		TargetURL: url,
+		mu:        sync.RWMutex{},
+		rpx:       nil,
+		isAlive:   false,
+	}
+}
 
 //SetAlive mark a backend service status to down
 func (b *Backend) SetAlive(isAlv bool) {
@@ -33,7 +42,7 @@ func (b *Backend) IsAlive() bool {
 
 //HeathCheck call a special endpoint for checking the backend donw or on air
 func (b *Backend) HeathCheck(hcPatterm string) {
-	req, err := http.NewRequest(http.MethodGet, b.TagertURL+"/"+hcPatterm, nil)
+	req, err := http.NewRequest(http.MethodGet, b.TargetURL+"/"+hcPatterm, nil)
 	if err != nil {
 		b.SetAlive(false)
 		return

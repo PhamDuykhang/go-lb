@@ -7,6 +7,9 @@ import (
 	"github.com/PhamDuyKhang/go-lb/internal/dicovery"
 	"github.com/sirupsen/logrus"
 	"net/http"
+	"os"
+	"os/signal"
+	"sync"
 )
 
 func main() {
@@ -27,6 +30,9 @@ func main() {
 	if err != nil {
 		logrus.Panic(err)
 	}
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go lbPool.WatchChange()
 	KLB := golb.NewLoadBalancer(lbPool)
 
 	mainServer := http.Server{
@@ -34,8 +40,17 @@ func main() {
 		Handler: http.HandlerFunc(KLB.LoadBalance),
 	}
 
-	err = mainServer.ListenAndServe()
-	if err != nil {
-		logrus.Panic(err)
-	}
+	logrus.Info("starting load balancing service")
+	go func() {
+		err = mainServer.ListenAndServe()
+		if err != nil {
+			logrus.Panic(err)
+		}
+	}()
+	killSignal := make(chan os.Signal, 1)
+	signal.Notify(killSignal, os.Interrupt)
+	logrus.Info("service has been started")
+	<-killSignal
+	logrus.Info("service has been stopped")
+	return
 }
