@@ -2,6 +2,7 @@ package services
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -12,6 +13,8 @@ const (
 	StatusDown  = "down"
 	StatusUp    = "up"
 )
+
+type ErrorHandlerFunc func(w http.ResponseWriter, r *http.Request, err error)
 
 type (
 	//BackendCommonInformation hold a basic information
@@ -29,6 +32,7 @@ type (
 		Create() error
 		GetID() string
 		Stat() BackendCommonInformation
+		ErrorHandle(halerFunc ErrorHandlerFunc)
 		Serve(w http.ResponseWriter, r *http.Request)
 	}
 	//DockerEnvContainer for docker env
@@ -97,6 +101,11 @@ func (dc *DockerEnvContainer) Stat() BackendCommonInformation {
 	}
 }
 
+//ErrorHandle set a callback func if the reverse proxy got error
+func (dc *DockerEnvContainer) ErrorHandle(errorHandlerFunc ErrorHandlerFunc) {
+	dc.prx.ErrorHandler = errorHandlerFunc
+}
+
 //Serve forward the request in to container
 func (dc *DockerEnvContainer) Serve(w http.ResponseWriter, r *http.Request) {
 	dc.prx.ServeHTTP(w, r)
@@ -119,4 +128,16 @@ func (dc *DockerEnvContainer) HealthCheck() string {
 	}
 	return StatusUp
 
+}
+
+func middlewareTwo(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.Println("Executing middlewareTwo")
+		if r.URL.Path == "/foo" {
+			return
+		}
+
+		next.ServeHTTP(w, r)
+		log.Println("Executing middlewareTwo again")
+	})
 }

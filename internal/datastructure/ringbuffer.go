@@ -43,13 +43,8 @@ func (r *BackendRingBuffer) EnQueues(b services.Backend) {
 	if !r.IsFull() {
 		r.mx.Lock()
 		defer r.mx.Unlock()
-		t := (r.tail + 1) % int64(len(r.a))
-		r.a[t] = b
-		if t == 0 {
-			r.tail = t
-		} else {
-			r.tail++
-		}
+		r.tail = (r.tail + 1) % int64(len(r.a))
+		r.a[r.tail] = b
 		r.numElement++
 		return
 	}
@@ -60,9 +55,8 @@ func (r *BackendRingBuffer) DeQueue() services.Backend {
 	if !r.IsEmpty() {
 		r.mx.Lock()
 		defer r.mx.Unlock()
-		h := (r.head + 1) % int64(len(r.a))
-		element := r.a[h]
-		r.head = h
+		r.head = (r.head + 1) % int64(len(r.a))
+		element := r.a[r.head]
 		r.numElement--
 		return element
 	}

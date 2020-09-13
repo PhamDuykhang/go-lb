@@ -4,6 +4,7 @@ import (
 	"errors"
 	"github.com/PhamDuyKhang/go-lb/internal/datastructure"
 	"github.com/PhamDuyKhang/go-lb/internal/services"
+	"github.com/PhamDuyKhang/go-lb/internal/util"
 	"net/http"
 )
 
@@ -27,32 +28,37 @@ func NewRoundRobinStrategies() RoundRobinStrategies {
 }
 
 func (rs *RoundRobinStrategies) InitBackend(bks []services.Backend) error {
+
 	if len(bks) == 0 {
 		return errors.New("backend list is empty")
 	}
-	logger.Infof("adding backend to pool")
+	logger.Debug("adding backend to pool")
+
 	for _, bk := range bks {
-		logger.Info(bk)
-		if bk.IsAlive() {
-			logger.Infof("adding container %s to pool", bk.GetID())
-			beforeLen := rs.backendList.Len()
-			rs.backendList.EnQueues(bk)
-			logger.Infof("adding container successfully len: %d grow to: %d", beforeLen, rs.backendList.Len())
-		}
+		rs.AddNewNodeToPool(bk)
 	}
 	return nil
 }
 
 //AddNewNodeToPool add new backend service
 func (rs *RoundRobinStrategies) AddNewNodeToPool(bk services.Backend) {
-	logger.Info("adding new backend to round robin pool")
-	rs.backendList.EnQueues(bk)
-	logger.Infof("adding new backend to round robin pool is success now we have %d service inside", rs.backendList.Len())
+	if bk.IsAlive() {
+		logger.Debugf("adding container %s to pool", bk.GetID())
+		beforeLen := rs.backendList.Len()
+		bk.ErrorHandle(func(w http.ResponseWriter, r *http.Request, err error) {
+			logger.Errorf("[%s] Error:%s", bk.GetID(), err.Error())
+			// handle retry and mark the backend is down
+			util.JSONWrite(w, http.StatusServiceUnavailable, nil)
+		})
+		rs.backendList.EnQueues(bk)
+		logger.Debugf("adding container successfully len: %d grow to: %d", beforeLen, rs.backendList.Len())
+	}
+	logger.Debugf("adding new backend to round robin pool is success now we have %d service inside", rs.backendList.Len())
 	return
 }
 
 func (rs *RoundRobinStrategies) LoadBalancing(w http.ResponseWriter, r *http.Request) {
-	logger.Infof("starting lb for request")
+	logger.Debug("starting lb for request")
 	for {
 		b := rs.backendList.DeQueue()
 		logger.Debugf("the backend %+v", b)
@@ -60,7 +66,7 @@ func (rs *RoundRobinStrategies) LoadBalancing(w http.ResponseWriter, r *http.Req
 			logger.Infof("forward request %s --------------> %s stating", r.URL.String(), b.Stat().URL)
 			b.Serve(w, r)
 			logger.Infof("forward request %s --------------> %s completed", r.URL.String(), b.Stat().URL)
-			logger.Infof("return backend to pool")
+			logger.Debugf("return backend to pool")
 		}
 		rs.backendList.EnQueues(b)
 		return
