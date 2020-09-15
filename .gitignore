@@ -1,2 +1,7 @@
 .idea
 testing
+.DS_Store
+vendor/
+bin
+# put all binary file to bin folder late
+docker/compose/simple

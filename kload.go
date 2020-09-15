@@ -2,14 +2,15 @@ package main
 
 import (
 	"fmt"
-	"github.com/PhamDuyKhang/go-lb/internal/discovery"
-	"github.com/PhamDuyKhang/go-lb/internal/pool"
-	"github.com/PhamDuyKhang/go-lb/internal/services"
-	"github.com/sirupsen/logrus"
 	"net/http"
 	"os"
 	"os/signal"
 	"time"
+
+	"github.com/PhamDuyKhang/go-lb/internal/discovery"
+	"github.com/PhamDuyKhang/go-lb/internal/pool"
+	"github.com/PhamDuyKhang/go-lb/internal/services"
+	"github.com/sirupsen/logrus"
 )
 
 func init() {
