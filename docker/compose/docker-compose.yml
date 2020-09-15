@@ -1,0 +1,54 @@
+version: "3"
+services:
+  load-balancing:
+    image: klb:v2.3
+    volumes:
+    - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - kapp
+    ports:
+    - 8080:8080
+    depends_on:
+      - sv-1
+      - sv-2
+      - sv-3
+      - sv-4
+      - sv-5
+  sv-1:
+    labels:
+      - "ktech.loadbalacing=enable"
+    build: .
+    ports:
+      - 8082:8080
+    networks:
+      - kapp
+  sv-2:
+    build: .
+    ports:
+    - 8083:8080
+    networks:
+      - kapp
+    labels:
+      - "ktech.loadbalacing=enable"
+  sv-3:
+    labels:
+      - "ktech.loadbalacing=enable"
+    build: .
+    networks:
+      - kapp
+  sv-4:
+    labels:
+      - "ktech.loadbalacing=enable"
+    build: .
+    networks:
+      - kapp
+  sv-5:
+    labels:
+      - "ktech.loadbalacing=enable"
+    build: .
+    networks:
+      - kapp
+
+networks:
+  kapp:
+    driver: bridge
