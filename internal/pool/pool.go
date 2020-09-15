@@ -2,10 +2,13 @@ package pool
 
 import (
 	"errors"
+	"net/http"
+	"time"
+
+	"github.com/PhamDuyKhang/go-lb/internal/config"
 	"github.com/PhamDuyKhang/go-lb/internal/datastructure"
 	"github.com/PhamDuyKhang/go-lb/internal/services"
 	"github.com/PhamDuyKhang/go-lb/internal/util"
-	"net/http"
 )
 
 type (
@@ -47,8 +50,24 @@ func (rs *RoundRobinStrategies) AddNewNodeToPool(bk services.Backend) {
 		beforeLen := rs.backendList.Len()
 		bk.ErrorHandle(func(w http.ResponseWriter, r *http.Request, err error) {
 			logger.Errorf("[%s] Error:%s", bk.GetID(), err.Error())
-			// handle retry and mark the backend is down
-			util.JSONWrite(w, http.StatusServiceUnavailable, nil)
+			retries := util.GetRetry(r)
+			if retries < 3 {
+				select {
+				case <-time.After(10 * time.Millisecond):
+					logger.Debugf("retry %d times at node %s ", retries, bk.GetID())
+					bk.Serve(w, util.SetRetry(r, retries+1))
+				}
+				return
+			}
+			bk.SetHealth(true)
+			logger.Debugf("node %s has been marked down", bk.GetID())
+			errRes := config.ForwardError{
+				SourceURL: r.URL.String(),
+				Status:    "Fail",
+				Message:   "Service you chose has been die",
+			}
+			util.JSONWrite(w, http.StatusServiceUnavailable, errRes)
+			return
 		})
 		rs.backendList.EnQueues(bk)
 		logger.Debugf("adding container successfully len: %d grow to: %d", beforeLen, rs.backendList.Len())
@@ -68,7 +87,15 @@ func (rs *RoundRobinStrategies) LoadBalancing(w http.ResponseWriter, r *http.Req
 			logger.Infof("forward request %s --------------> %s completed", r.URL.String(), b.Stat().URL)
 			logger.Debugf("return backend to pool")
 		}
-		rs.backendList.EnQueues(b)
+		if b != nil && b.IsAlive() {
+			rs.backendList.EnQueues(b)
+			return
+		}
+		logger.Debugf("the node %s is down remove that node forever", b.GetID())
 		return
 	}
+}
+
+func (rs *RoundRobinStrategies) AddListenerDiscovery() {
+
 }
