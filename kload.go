@@ -1,43 +1,54 @@
 package main
 
 import (
-	"flag"
 	"fmt"
-	golb "github.com/PhamDuyKhang/go-lb/internal"
-	"github.com/PhamDuyKhang/go-lb/internal/dicovery"
+	"github.com/PhamDuyKhang/go-lb/internal/discovery"
+	"github.com/PhamDuyKhang/go-lb/internal/pool"
+	"github.com/PhamDuyKhang/go-lb/internal/services"
 	"github.com/sirupsen/logrus"
 	"net/http"
 	"os"
 	"os/signal"
-	"sync"
+	"time"
 )
 
+func init() {
+	logrus.SetLevel(logrus.DebugLevel)
+	logrus.SetFormatter(&logrus.TextFormatter{
+		FullTimestamp:   true,
+		TimestampFormat: time.RFC3339Nano,
+	})
+
+}
+
 func main() {
-	logrus.SetLevel(logrus.InfoLevel)
-	logrus.Info("starting load balancing")
+	logrus.Infof("starting load balancing at %s", time.Now().Format(time.ANSIC))
 
-	np := flag.String("np", "", "the network name of docker provide")
+	listBackend := discovery.GetListBackend("docker_kapp")
+	logrus.Infof("%d available backend", len(listBackend))
 
-	flag.Parse()
+	loadBalancer := pool.NewRoundRobinStrategies()
 
-	if np == nil {
-		logrus.Panic("can't get important parameter")
+	var servicesList []services.Backend
+
+	for _, container := range listBackend {
+		bk := services.NewDockerEnvContainer(container.ContainerAddress, container.ContainerID, container.ContainerName)
+		if err := bk.Create(); err != nil {
+			continue
+		}
+		servicesList = append(servicesList, bk)
 	}
-
-	backendList := dicovery.GetListBackend(*np)
-
-	lbPool, err := golb.NewLoadBalancingPool(backendList)
+	logrus.Infof("staring init backend list")
+	err := loadBalancer.InitBackend(servicesList)
 	if err != nil {
-		logrus.Panic(err)
+		logrus.Panic("can't init backend", err)
 	}
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go lbPool.WatchChange()
-	KLB := golb.NewLoadBalancer(lbPool)
+
+	logrus.Infof("staring http server")
 
 	mainServer := http.Server{
 		Addr:    fmt.Sprintf(":8080"),
-		Handler: http.HandlerFunc(KLB.LoadBalance),
+		Handler: http.HandlerFunc(loadBalancer.LoadBalancing),
 	}
 
 	logrus.Info("starting load balancing service")
@@ -52,5 +63,5 @@ func main() {
 	logrus.Info("service has been started")
 	<-killSignal
 	logrus.Info("service has been stopped")
-	return
+
 }

@@ -1,4 +1,4 @@
-package dicovery
+package discovery
 
 const (
 	Change ServiceChangeType = "update"
